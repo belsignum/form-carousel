@@ -1,0 +1,5 @@
+TCEFORM.tt_content.tx_formcarousel_enable {
+  label = Render EXT:form as carousel (AJAX slide)
+  description = Enables animated, AJAX-based step transitions for multi-page EXT:form.
+  displayCond = FIELD:list_type:=:formframework
+}

@@ -1,0 +1,21 @@
+tt_content.form_formframework {
+  stdWrap {
+    prepend.if.isTrue.field = tx_formcarousel_enable
+    append.if.isTrue.field  = tx_formcarousel_enable
+
+    prepend = COA
+    prepend {
+      10 = TEXT
+      10.value = <div class="form-carousel carousel slide"
+      20 = TEXT
+      20.dataWrap = data-rendering="carousel" data-ce-uid="{field:uid}" data-step-index="0" data-indicators="{field:tx_formcarousel_indicators}"
+      30 = USER
+      30.userFunc = Belsignum\FormCarousel\TypoScript\FormStepsUtil->stepsAttr
+      40 = TEXT
+      40.value = >
+    }
+
+    append = TEXT
+    append.value = </div>
+  }
+}

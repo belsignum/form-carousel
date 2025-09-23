@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<xliff version="1.2">
+	<file source-language="en" datatype="plaintext" original="messages" >
+		<body>
+			<trans-unit id="tt_content.tx_formcarousel_enable">
+				<source>Render EXT:form as carousel (AJAX slide)</source>
+			</trans-unit>
+			<trans-unit id="tt_content.tx_formcarousel_indicators">
+				<source>Form Carousel Indicators</source>
+			</trans-unit>
+			<trans-unit id="indicator.none">
+				<source>None</source>
+			</trans-unit>
+			<trans-unit id="indicator.dots">
+				<source>Dots</source>
+			</trans-unit>
+			<trans-unit id="indicator.progress">
+				<source>Progress bar</source>
+			</trans-unit>
+		</body>
+	</file>
+</xliff>

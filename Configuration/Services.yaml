@@ -1,0 +1,11 @@
+services:
+  _defaults:
+    autowire: true
+    autoconfigure: true
+    public: false
+
+  Belsignum\FormCarousel\:
+    resource: '../Classes/*'
+
+  Belsignum\FormCarousel\DataProcessing\FormStepsProcessor:
+    public: true

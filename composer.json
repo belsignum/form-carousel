@@ -1,0 +1,20 @@
+{
+	"name": "belsignum/form-carousel",
+	"type": "typo3-cms-extension",
+	"description": "AJAX step transitions for EXT:form using Bootstrap-like carousel animations.",
+	"license": "MIT",
+	"require": {
+		"typo3/cms-core": "^12.4 || ^13.0",
+		"typo3/cms-form": "^12.4 || ^13.0"
+	},
+	"extra": {
+		"typo3/cms": {
+			"extension-key": "form_carousel"
+		}
+	},
+	"autoload": {
+		"psr-4": {
+			"Belsignum\\FormCarousel\\": "Classes/"
+		}
+	}
+}
