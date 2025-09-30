@@ -26,15 +26,15 @@ export class FormCarousel {
     this.wrapper.addEventListener('submit', this.onSubmit, { capture: true });
 
     // Ensure consistent structure on initial render
-    // ...
     this.ensureCarouselStructure();     // wraps initial <form>
+    this.ensureExternalControls();
     this.createIndicators();            // creates indicators
 
     const initialForm = this.wrapper.querySelector('form');
     if (initialForm) {
-      // this.updateStepIndexAttr(initialForm); // <-- remove: already done in ensureCarouselStructure()
-      this.decorateControlsForForm(initialForm);
-    } else {
+      this.updateExternalControls(initialForm);
+    }
+    else {
       this.wrapper.setAttribute('data-state', 'finished');
       this.wrapper.setAttribute('data-finished', 'true');
     }
@@ -66,8 +66,6 @@ export class FormCarousel {
     this.wrapper.classList.remove('pe-none');
   }
 
-  getCeUid() { return this.wrapper.dataset.ceUid; }
-
   getActiveForm() {
     return this.wrapper.querySelector(':scope > .carousel-inner .carousel-item.active form')
       || this.wrapper.querySelector(':scope > form')
@@ -89,9 +87,16 @@ export class FormCarousel {
     first?.scrollIntoView?.({ behavior: 'smooth', block: 'center' });
   }
 
+  // Get total steps from wrapper dataset (N), or null
   getTotalStepsFromWrapper() {
-    const s = parseInt(this.wrapper.dataset.steps || '', 10);
-    return Number.isInteger(s) && s > 0 ? s : null; // N
+    const n = parseInt(this.wrapper.dataset.steps || '', 10);
+    return Number.isInteger(n) && n > 0 ? n : null;
+  }
+
+  // Find a step button with an exact numeric value (== targetIndex)
+  getButtonByExactIndex(form, targetIndex) {
+    if (!Number.isInteger(targetIndex)) return null;
+    return this.getStepButtons(form).find(b => this.parseBtnVal(b) === targetIndex) || null;
   }
 
   // Always decode current step from the form's __state (ignores dataset)
@@ -103,9 +108,7 @@ export class FormCarousel {
       const bin = atob(raw);
       const m = /lastDisplayedPageIndex";i:(\d+)/.exec(bin);
       return m ? parseInt(m[1], 10) : null;
-    } catch {
-      return null;
-    }
+    } catch { return null; }
   }
 
   getCurrentStepIndex(form) {
@@ -129,66 +132,13 @@ export class FormCarousel {
     return 'next';
   }
 
-  decorateControlsForForm(form) {
-    const prevBtn = this.findPrevButton(form);
-    const nextBtn = this.findNextButton(form);
-
-    if (prevBtn) this.decorateAsCarouselControl(prevBtn, 'prev');
-    if (nextBtn) this.decorateAsCarouselControl(nextBtn, 'next');
-
-    this.wrapper.querySelectorAll('.carousel-control-prev')
-      .forEach(el => el.classList.toggle('d-none', !prevBtn));
-    this.wrapper.querySelectorAll('.carousel-control-next')
-      .forEach(el => el.classList.toggle('d-none', !nextBtn));
-    this.dispatch('decorateControls', { form });
-  }
-
-  decorateAsCarouselControl(btn, type /* 'prev' | 'next' */) {
-    if (!btn || btn.dataset.fcDecorated === '1') return;
-
-    // Button-Style entfernen
-    btn.classList.forEach(c => {
-      if (c === 'btn' || c.startsWith('btn-')) btn.classList.remove(c);
-    });
-
-    // Bootstrap-Icon-Klassen sichern
-    const biClasses = [...btn.classList].filter(c => c === 'bi' || c.startsWith('bi-'));
-    biClasses.forEach(c => btn.classList.remove(c));
-
-    // Carousel-Control-Klasse setzen
-    btn.classList.add(type === 'prev' ? 'carousel-control-prev' : 'carousel-control-next');
-    btn.setAttribute('aria-label', type === 'prev' ? 'Previous' : 'Next');
-
-    // Inhalt neu bauen
-    const frag = document.createDocumentFragment();
-
-    if (biClasses.length) {
-      const icon = document.createElement('span');
-      icon.className = biClasses.join(' ');
-      icon.setAttribute('aria-hidden', 'true');
-      frag.appendChild(icon);
-    } else {
-      const def = document.createElement('span');
-      def.className = type === 'prev' ? 'carousel-control-prev-icon' : 'carousel-control-next-icon';
-      def.setAttribute('aria-hidden', 'true');
-      frag.appendChild(def);
-    }
-
-    const vh = document.createElement('span');
-    vh.className = 'visually-hidden';
-    vh.textContent = type === 'prev' ? 'Prev' : 'Next';
-    frag.appendChild(vh);
-
-    // Inhalte austauschen
-    btn.replaceChildren(frag);
-    btn.dataset.fcDecorated = '1';
-  }
-
+  // Parse numeric value from a step button
   parseBtnVal(btn) {
     const v = parseInt(btn?.value, 10);
     return Number.isFinite(v) ? v : null;
   }
 
+  // Return all step submitters inside the form
   getStepButtons(form) {
     return [...form.querySelectorAll('button[name*="__currentPage"]')];
   }
@@ -382,7 +332,49 @@ export class FormCarousel {
       }
 
       this.dispatch('indicatorsUpdate', { index: safeIndex, total: this.getTotalStepsFromWrapper() });
-      return;
+    }
+  }
+
+  // Ensure external controls exist as direct children of the wrapper (outside slides)
+  ensureExternalControls() {
+    let prev = this.wrapper.querySelector(':scope > .fc-control-prev');
+    let next = this.wrapper.querySelector(':scope > .fc-control-next');
+
+    if (!prev) {
+      prev = document.createElement('button');
+      prev.type = 'button';
+      prev.className = 'fc-control-prev carousel-control-prev';
+      prev.innerHTML = '<span class="carousel-control-prev-icon" aria-hidden="true"></span><span class="visually-hidden">Previous</span>';
+      this.wrapper.insertBefore(prev, this.wrapper.firstChild);
+    }
+    if (!next) {
+      next = document.createElement('button');
+      next.type = 'button';
+      next.className = 'fc-control-next carousel-control-next';
+      next.innerHTML = '<span class="carousel-control-next-icon" aria-hidden="true"></span><span class="visually-hidden">Next</span>';
+      this.wrapper.appendChild(next);
+    }
+
+    // click handlers (proxy to real buttons)
+    if (!prev.dataset.fcWired) {
+      prev.addEventListener('click', (e) => {
+        e.preventDefault();
+        if (this.isSubmitting || this.isNavigating) return;
+        const form = this.wrapper.querySelector('form');
+        const sub = form ? this.getOriginalPrev(form) : null;
+        if (form && sub) this.submitStep(form, sub).catch(console.error);
+      });
+      prev.dataset.fcWired = '1';
+    }
+    if (!next.dataset.fcWired) {
+      next.addEventListener('click', (e) => {
+        e.preventDefault();
+        if (this.isSubmitting || this.isNavigating) return;
+        const form = this.wrapper.querySelector('form');
+        const sub = form ? this.getOriginalNext(form) : null;
+        if (form && sub) this.submitStep(form, sub).catch(console.error);
+      });
+      next.dataset.fcWired = '1';
     }
   }
 
@@ -424,6 +416,91 @@ export class FormCarousel {
     );
   }
 
+  // Prev = button with value === (currentIndex - 1)
+  // Fallbacks only if you really want them (kept minimal here)
+  getOriginalPrev(form) {
+    const curr = this.decodeStepIndexFromForm(form);
+    if (!Number.isInteger(curr) || curr <= 0) return null;
+
+    // exact match
+    const exact = this.getButtonByExactIndex(form, curr - 1);
+    if (exact) return exact;
+
+    // optional fallback (uncommon): explicit prev marker
+    return this.getStepButtons(form).find(b => b.hasAttribute('formnovalidate')) || null;
+  }
+
+  // Next = button with value === (currentIndex + 1)
+  // Do NOT treat submit as next (EXT:form sometimes uses value === total for submit)
+  getOriginalNext(form) {
+    const curr  = this.decodeStepIndexFromForm(form);
+    if (!Number.isInteger(curr)) return null;
+
+    const total = this.getTotalStepsFromWrapper(); // N
+    const target = curr + 1;
+
+    // if total known and target equals N => that's submit, not next
+    if (total != null && target >= total) return null;
+
+    // exact match
+    return this.getButtonByExactIndex(form, target);
+  }
+
+  /**
+   * Create/remove external proxy controls depending on availability.
+   * - Create PREV only if an original 'prev' exists.
+   * - Create NEXT only if an original 'next' (not 'submit') exists.
+   * - Hide in-slide navigation to avoid animating those buttons.
+   */
+  updateExternalControls(form) {
+    const origPrev = this.getOriginalPrev(form);
+    const origNext = this.getOriginalNext(form);
+
+    // ---- PREV ----
+    let prev = this.wrapper.querySelector(':scope > .fc-control-prev');
+    if (origPrev) {
+      if (!prev) {
+        prev = document.createElement('button');
+        prev.type = 'button';
+        prev.className = 'fc-control-prev carousel-control-prev';
+        prev.innerHTML = '<span class="carousel-control-prev-icon" aria-hidden="true"></span><span class="visually-hidden">Previous</span>';
+        this.wrapper.insertBefore(prev, this.wrapper.firstChild);
+        prev.addEventListener('click', (e) => {
+          e.preventDefault();
+          if (this.isSubmitting || this.isNavigating) return;
+          const form = this.wrapper.querySelector('form');
+          const sub = form ? this.getOriginalPrev(form) : null;
+          if (form && sub) this.submitStep(form, sub).catch(console.error);
+        });
+      }
+      prev.classList.remove('d-none');
+    } else if (prev) {
+      prev.remove(); // remove control if no prev
+    }
+
+    // ---- NEXT (exclude submit) ----
+    let next = this.wrapper.querySelector(':scope > .fc-control-next');
+    if (origNext) {
+      if (!next) {
+        next = document.createElement('button');
+        next.type = 'button';
+        next.className = 'fc-control-next carousel-control-next';
+        next.innerHTML = '<span class="carousel-control-next-icon" aria-hidden="true"></span><span class="visually-hidden">Next</span>';
+        this.wrapper.appendChild(next);
+        next.addEventListener('click', (e) => {
+          e.preventDefault();
+          if (this.isSubmitting || this.isNavigating) return;
+          const form = this.wrapper.querySelector('form');
+          const sub = form ? this.getOriginalNext(form) : null;
+          if (form && sub) this.submitStep(form, sub).catch(console.error);
+        });
+      }
+      next.classList.remove('d-none');
+    } else if (next) {
+      next.remove(); // remove control if no next (or only submit exists)
+    }
+  }
+
   // Core
   async submitStep(form, submitter) {
     const ceUid = this.wrapper.dataset.ceUid;
@@ -458,13 +535,14 @@ export class FormCarousel {
     }
 
     // Spinner on active slide
-    const inner = this.wrapper.querySelector('.carousel-inner');
-    let currentItem = inner?.querySelector('.carousel-item.active') || this.wrapper;
-    this.setLoading(true, currentItem);
-
     // Debounce: skip if already running
     if (this.isSubmitting) return;
     this.isSubmitting = true;
+
+    // Spinner on active slide
+    const inner = this.wrapper.querySelector('.carousel-inner');
+    let currentItem = inner?.querySelector('.carousel-item.active') || this.wrapper;
+    this.setLoading(true, currentItem);
 
     try {
       const res = await fetch(form.action, {
@@ -536,9 +614,9 @@ export class FormCarousel {
           el.addEventListener('change', cleaner);
           el.dataset.fcCleanListener = '1';
         });
-        this.decorateControlsForForm(nextForm);
-        this.focusFirstProblem(nextForm);
         this.updateStepIndexAttr(nextForm);
+        this.updateExternalControls(nextForm);
+        this.focusFirstProblem(nextForm);
         this.dispatch('serverError', { form: nextForm });
         return;
       }
@@ -554,10 +632,10 @@ export class FormCarousel {
       this.beginTransition({ direction });
       // Build next slide and insert
       inner.appendChild(nextItem);
+      this.updateExternalControls(nextForm);
 
       // Update index and decorate controls BEFORE animation starts
       this.updateStepIndexAttr(nextForm);
-      this.decorateControlsForForm(nextForm);
       this.dispatch('beforeSlide', { direction });
 
       // Start transition classes...

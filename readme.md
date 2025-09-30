@@ -64,6 +64,32 @@ composer require belsignum/form-carousel
 
 ---
 
+## Proxy navigation (outside slides)
+
+Prev/Next are rendered **outside** of the animated slides as **proxy controls**.
+This prevents the navigation UI from being animated together with the slide and keeps controls fixed in place.
+
+- Proxies live as direct children of the `.form-carousel` wrapper:
+  `.fc-control-prev` and `.fc-control-next` (both use Bootstrap `carousel-control-*` classes).
+- Proxies **trigger the original** Prev/Next submitters inside the current form step.
+- If a step has **no** Prev or **no** Next (or only a Submit), the corresponding proxy is **not** rendered.
+- During requests or transitions the whole wrapper is temporarily locked via `pe-none` (see `lockUi()` / `unlockUi()` in the code).
+
+**Note on in-slide buttons**
+You can safely hide the original in-slide Prev/Next (but not the Submit) via CSS so they do not show up inside the slide:
+
+```scss
+.form-carousel {
+  .btn-group:is(.next:not(.submit), .previous) {
+    display: none;
+  }
+}
+```
+
+This keeps the original buttons in the DOM for EXT:form logic, while the proxies provide the UX.
+
+---
+
 ## Events
 
 Each `FormCarousel` instance dispatches **CustomEvents** on the document with the prefix `formcarousel:`.
