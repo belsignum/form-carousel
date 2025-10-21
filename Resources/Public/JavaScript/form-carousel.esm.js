@@ -751,14 +751,8 @@ export class FormCarousel {
 
     target.classList.add('position-relative');
 
-    const form = target.querySelector('form');
-    if (form) {
-      form.querySelectorAll('input,select,textarea,button').forEach(el => {
-        if (el.type !== 'hidden') el.disabled = !!isLoading;
-      });
-    }
-
     let overlay = target.querySelector(':scope > .fc-loading');
+
     if (isLoading) {
       if (!overlay) {
         overlay = document.createElement('div');
@@ -776,9 +770,9 @@ export class FormCarousel {
           'bg-opacity-50'
         ].join(' ');
         overlay.innerHTML = `
-          <div class="spinner-border" role="status" aria-live="polite">
-            <span class="visually-hidden">Loading…</span>
-          </div>`;
+        <div class="spinner-border" role="status" aria-live="polite">
+          <span class="visually-hidden">Loading…</span>
+        </div>`;
         target.appendChild(overlay);
       }
     } else if (overlay) {
