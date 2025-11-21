@@ -17,7 +17,8 @@ export class FormCarousel {
     this.options = { fetchInit: {}, ...options };
     this.isSubmitting = false;
     this.isNavigating = false;
-    this.indicators = this.wrapper.dataset.indicators || 'progress';
+    this.indicators = this.wrapper.dataset.indicators || 'progress'; // 'progress' | 'dots' | 'none'
+    this.formId = null; // persistent form id for all events
 
     this.onClick = this.onClick.bind(this);
     this.onSubmit = this.onSubmit.bind(this);
@@ -25,16 +26,20 @@ export class FormCarousel {
     this.wrapper.addEventListener('click', this.onClick, { passive: false });
     this.wrapper.addEventListener('submit', this.onSubmit, { capture: true });
 
-    // Ensure consistent structure on initial render
-    this.ensureCarouselStructure();     // wraps initial <form>
+    // Normalize initial DOM into a carousel structure
+    this.ensureCarouselStructure();
     this.ensureExternalControls();
-    this.createIndicators();            // creates indicators
+    this.createIndicators();
 
     const initialForm = this.wrapper.querySelector('form');
     if (initialForm) {
+      // remember form id once, to keep it available even after finish content
+      if (initialForm.id) {
+        this.formId = initialForm.id;
+      }
       this.updateExternalControls(initialForm);
-    }
-    else {
+    } else {
+      // no form present -> treat as finished content
       this.wrapper.setAttribute('data-state', 'finished');
       this.wrapper.setAttribute('data-finished', 'true');
     }
@@ -44,11 +49,42 @@ export class FormCarousel {
    * Helpers
    */
   dispatch(name, detail = {}, opts = {}) {
+    // Try to resolve the current active form (may be null e.g. on finished)
+    const activeForm =
+      detail.form ||
+      this.wrapper.querySelector(':scope > .carousel-inner .carousel-item.active form') ||
+      this.wrapper.querySelector(':scope > form') ||
+      null;
+
+    // Remember form id once, so we can still report it after finish content
+    if (!this.formId && activeForm && activeForm.id) {
+      this.formId = activeForm.id;
+    }
+
+    const ceUid = this.wrapper.dataset.ceUid || null;
+    const state = this.wrapper.dataset.state || null;
+
+    let stepIndex = null;
+    try {
+      stepIndex = this.getCurrentStepIndex(activeForm || undefined);
+    } catch {
+      stepIndex = null;
+    }
+
     const ev = new CustomEvent(`formcarousel:${name}`, {
-      detail,
+      detail: {
+        ...detail,
+        wrapper: this.wrapper,
+        ceUid,
+        state,
+        form: activeForm,
+        formId: this.formId || null,
+        stepIndex
+      },
       bubbles: true,
       cancelable: !!opts.cancelable
     });
+
     this.wrapper.dispatchEvent(ev);
     return ev;
   }
@@ -567,15 +603,28 @@ export class FormCarousel {
 
       // Thank-you content inside same CE (no form): render inline
       if (freshWrapper && !nextForm) {
+        // Content finisher: we are done, show the final content instead of another form step.
+
+        // 1) Stop loading state and mark the submit cycle as finished
         this.setLoading(false, currentItem);
+        this.isSubmitting = false;
+        this.isNavigating = false;
+
+        // 2) Replace the inner markup with the finish content
         this.wrapper.innerHTML = freshWrapper.innerHTML;
+
+        // 3) No more carousel behaviour from here on
         this.wrapper.classList.remove('carousel', 'slide');
         this.wrapper.setAttribute('data-state', 'finished');
-        this.wrapper.removeAttribute('data-step-index');
-        const ind = this.wrapper.querySelector(':scope > .carousel-indicators');
-        if (ind) ind.remove(); // sauber aus dem DOM
+
+        // IMPORTANT: do NOT remove data-step-index so we still know the last step index
+        // const ind = this.wrapper.querySelector(':scope > .carousel-indicators');
+        // Indicators are no longer relevant, but after innerHTML = ... they won't exist anyway.
+
+        // 4) Unlock UI and fire finished event (dispatch will add meta fields)
         this.unlockUi();
-        this.dispatch('finished', { wrapper: this.wrapper });
+        this.dispatch('finished', {});
+
         return;
       }
 
